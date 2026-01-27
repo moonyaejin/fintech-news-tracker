@@ -28,6 +28,7 @@ jobs:
       
       - name: 📦 Install dependencies
         run: |
+          pip uninstall groq -y || true
           pip install -r requirements.txt
       
       - name: 🏦 Collect FinTech News
