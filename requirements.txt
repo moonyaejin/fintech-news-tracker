@@ -1,0 +1,3 @@
+# 금융IT 뉴스 수집기 의존성
+feedparser==6.0.11
+requests==2.31.0
