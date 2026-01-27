@@ -1,1 +1,51 @@
-example
+name: 📰 Daily FinTech News Update
+
+on:
+  # 매일 한국시간 오전 7시 (UTC 22:00) 자동 실행
+  schedule:
+    - cron: '0 22 * * *'
+  
+  # 수동 실행 가능
+  workflow_dispatch:
+
+jobs:
+  collect-news:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: 🏦 Collect FinTech News
+        run: |
+          python src/news_collector.py
+      
+      - name: 📝 Commit and Push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 변경사항 확인
+          if [[ -n $(git status --porcelain) ]]; then
+            git add .
+            git commit -m "📰 $(date +'%Y-%m-%d') 금융IT 뉴스 업데이트"
+            git push
+            echo "✅ 새로운 뉴스가 커밋되었습니다."
+          else
+            echo "ℹ️ 변경사항이 없습니다."
+          fi
