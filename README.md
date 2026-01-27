@@ -84,3 +84,20 @@ MIT License
 ---
 
 *금융IT 취업 준비생을 위한 자동화 도구입니다* 🚀
+
+
+<!-- NEWS_START -->
+### 📅 최근 업데이트: 2026-01-27
+
+오늘 수집된 금융IT 뉴스: **12건**
+
+#### 주요 뉴스
+
+- [SK하이닉스, MS 차세대 AI칩에 HBM 단독 공급](https://www.yonhapnewstv.co.kr/news/AKR20260127133605Hi1)
+- [아이폰 에어2, 초광각 카메라·초박형 페이스ID 탑재 전망](https://www.etnews.com/20260127000142)
+- [EU, 머스크 AI 그록 '딥페이크 생성' 논란 조사 착수](https://www.etnews.com/20260127000004)
+- [“대출청약 철회, 중도상환 처리 말라” 금감원, 저축은행 대상 관리강화](https://www.mk.co.kr/news/economy/11944205)
+- [쿠팡 작년 결제액 66조원 넘어…정보유출 사고 후 성장 둔화](https://www.yonhapnewstv.co.kr/news/AKR20260127113657MmV)
+
+👉 [전체 뉴스 보기](./news/2026-01-27.md)
+<!-- NEWS_END -->
