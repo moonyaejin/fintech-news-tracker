@@ -8,6 +8,7 @@
 """
 
 import feedparser
+import requests
 import re
 import os
 import time
@@ -15,7 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
-from groq import Groq
 
 
 @dataclass
@@ -120,12 +120,10 @@ class FinTechNewsAnalyzer:
         self.filtered_articles: list[Article] = []
         
         # Groq API 설정
-        api_key = os.environ.get("GROQ_API_KEY")
-        if api_key:
-            self.client = Groq(api_key=api_key)
+        self.api_key = os.environ.get("GROQ_API_KEY")
+        if self.api_key:
             print("✅ Groq API 연결됨")
         else:
-            self.client = None
             print("⚠️ GROQ_API_KEY 없음 - 기사 분석 건너뜀")
     
     def fetch_all_feeds(self) -> None:
@@ -181,7 +179,7 @@ class FinTechNewsAnalyzer:
     
     def analyze_articles(self, max_articles: int = 5) -> None:
         """Groq API로 기사 분석"""
-        if not self.client:
+        if not self.api_key:
             print("\n⚠️ Groq API 키가 없어 분석을 건너뜁니다.")
             return
         
@@ -200,13 +198,23 @@ class FinTechNewsAnalyzer:
                     date=today
                 )
                 
-                response = self.client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3,
-                    max_tokens=2000
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "llama-3.1-8b-instant",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3,
+                        "max_tokens": 2000
+                    },
+                    timeout=30
                 )
-                article.analyzed_content = response.choices[0].message.content
+                response.raise_for_status()
+                result = response.json()
+                article.analyzed_content = result["choices"][0]["message"]["content"]
                 
                 # API 속도 제한 대응
                 time.sleep(2)
