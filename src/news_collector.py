@@ -3,7 +3,7 @@
 금융IT 뉴스 자동 수집 & 분석기
 - RSS 피드에서 경제/IT 뉴스 수집
 - 금융IT 관련 키워드로 필터링
-- Gemini API로 기사 분석 및 정리
+- Groq API로 기사 분석 및 정리
 - 마크다운 파일로 저장
 """
 
@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
-import google.generativeai as genai
+from groq import Groq
 
 
 @dataclass
@@ -119,15 +119,14 @@ class FinTechNewsAnalyzer:
         self.articles: list[Article] = []
         self.filtered_articles: list[Article] = []
         
-        # Gemini API 설정
-        api_key = os.environ.get("GEMINI_API_KEY")
+        # Groq API 설정
+        api_key = os.environ.get("GROQ_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel("gemini-2.0-flash")
-            print("✅ Gemini API 연결됨")
+            self.client = Groq(api_key=api_key)
+            print("✅ Groq API 연결됨")
         else:
-            self.model = None
-            print("⚠️ GEMINI_API_KEY 없음 - 기사 분석 건너뜀")
+            self.client = None
+            print("⚠️ GROQ_API_KEY 없음 - 기사 분석 건너뜀")
     
     def fetch_all_feeds(self) -> None:
         """모든 RSS 피드에서 뉴스 수집"""
@@ -181,9 +180,9 @@ class FinTechNewsAnalyzer:
         print(f"📊 금융IT 관련 기사 {len(self.filtered_articles)}개 필터링 완료")
     
     def analyze_articles(self, max_articles: int = 5) -> None:
-        """Gemini API로 기사 분석"""
-        if not self.model:
-            print("\n⚠️ Gemini API 키가 없어 분석을 건너뜁니다.")
+        """Groq API로 기사 분석"""
+        if not self.client:
+            print("\n⚠️ Groq API 키가 없어 분석을 건너뜁니다.")
             return
         
         print(f"\n🤖 상위 {max_articles}개 기사 AI 분석 중...")
@@ -201,11 +200,16 @@ class FinTechNewsAnalyzer:
                     date=today
                 )
                 
-                response = self.model.generate_content(prompt)
-                article.analyzed_content = response.text
+                response = self.client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=2000
+                )
+                article.analyzed_content = response.choices[0].message.content
                 
-                # API 속도 제한 대응 (무료 티어: 분당 15회)
-                time.sleep(4)
+                # API 속도 제한 대응
+                time.sleep(2)
                 
             except Exception as e:
                 print(f"    ✗ 분석 실패: {e}")
@@ -273,7 +277,7 @@ class FinTechNewsAnalyzer:
         # 푸터
         lines.extend([
             "",
-            "*이 문서는 GitHub Actions + Gemini API로 자동 생성되었습니다.*",
+            "*이 문서는 GitHub Actions + Groq API로 자동 생성되었습니다.*",
         ])
         
         return "\n".join(lines)
