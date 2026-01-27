@@ -176,6 +176,59 @@ class FinTechNewsAnalyzer:
                     break
         
         print(f"📊 금융IT 관련 기사 {len(self.filtered_articles)}개 필터링 완료")
+        
+        # 중요도 점수로 정렬
+        self._rank_articles()
+    
+    def _rank_articles(self) -> None:
+        """기사 중요도 점수 계산 및 정렬"""
+        print("\n📈 기사 중요도 분석 중...")
+        
+        # 주요 출처 (신뢰도 높은 매체)
+        priority_sources = ["한국경제", "매일경제", "전자신문"]
+        
+        # 핵심 키워드 (더 중요한 키워드)
+        core_keywords = [
+            "금감원", "금융위", "오픈뱅킹", "마이데이터", "코어뱅킹",
+            "차세대", "농협은행", "KB국민", "신한은행", "우리은행", "하나은행",
+            "금융보안", "핀테크", "디지털 전환", "금융 클라우드"
+        ]
+        
+        scored_articles = []
+        
+        for article in self.filtered_articles:
+            score = 0
+            title_lower = article.title.lower()
+            text_lower = f"{article.title} {article.summary}".lower()
+            
+            # 1. 주요 출처 +3점
+            if article.source in priority_sources:
+                score += 3
+            
+            # 2. 제목에 키워드 포함 +3점/개
+            for keyword in self.KEYWORDS:
+                if keyword.lower() in title_lower:
+                    score += 3
+            
+            # 3. 핵심 키워드 매칭 +2점/개
+            for keyword in core_keywords:
+                if keyword.lower() in text_lower:
+                    score += 2
+            
+            # 4. 일반 키워드 매칭 개수 +1점/개
+            keyword_count = sum(1 for kw in self.KEYWORDS if kw.lower() in text_lower)
+            score += keyword_count
+            
+            scored_articles.append((score, article))
+        
+        # 점수 높은 순으로 정렬
+        scored_articles.sort(key=lambda x: x[0], reverse=True)
+        self.filtered_articles = [article for score, article in scored_articles]
+        
+        # 상위 5개 점수 출력
+        print("  🏆 중요도 TOP 5:")
+        for i, (score, article) in enumerate(scored_articles[:5]):
+            print(f"     {i+1}. [{score}점] {article.title[:40]}...")
     
     def analyze_articles(self, max_articles: int = 5) -> None:
         """Groq API로 기사 분석"""
