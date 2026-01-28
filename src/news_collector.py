@@ -12,10 +12,13 @@ import requests
 import re
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
+
+# 한국 시간대 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 
 @dataclass
@@ -41,27 +44,32 @@ class FinTechNewsAnalyzer:
         "전자신문": "https://rss.etnews.com/Section901.xml",
     }
     
-    # 금융IT 관련 키워드
+    # 금융IT 관련 키워드 (기사 필터링용)
     KEYWORDS = [
         # 금융 인프라
-        "코어뱅킹", "차세대", "금융 클라우드", "클라우드 전환", "레거시",
-        "금융 시스템", "전산 시스템", "DR센터", "재해복구", "금융 플랫폼",
+        "코어뱅킹", "차세대 시스템", "차세대", "금융 클라우드", "클라우드 전환", 
+        "레거시", "전산장애", "DR센터", "재해복구", "금융 플랫폼",
+        "IT 아웃소싱", "데이터센터", "시스템 통합", "SI",
         # 디지털 금융
         "오픈뱅킹", "마이데이터", "핀테크", "디지털 전환", "DX",
         "간편결제", "모바일뱅킹", "인터넷뱅킹", "네오뱅크", "챌린저뱅크",
-        "CBDC", "디지털화폐", "토큰증권", "STO",
+        "CBDC", "디지털화폐", "토큰증권", "STO", "디지털자산",
+        "슈퍼앱", "빅테크", "테크핀",
         # 금융 기술
-        "금융 API", "오픈API", "금융 AI", "로보어드바이저", "챗봇",
-        "블록체인", "분산원장", "RPA", "금융 데이터",
+        "금융 API", "오픈API", "금융 AI", "로보어드바이저", "AI 심사",
+        "블록체인", "분산원장", "RPA", "실시간 처리", "대용량 처리",
+        "빅데이터", "MSA", "마이크로서비스",
         # 보안/규제
         "금융보안", "전자금융", "금융위", "금감원", "FDS", "이상거래",
         "개인정보", "정보보호", "망분리", "제로트러스트", "금융규제",
-        # 금융권 동향
-        "은행 IT", "금융권 개발", "농협은행", "KB국민", "신한은행",
-        "우리은행", "하나은행", "카카오뱅크", "토스뱅크",
-        "금융공동망", "금융결제원", "코스콤",
-        # ESG
-        "녹색금융", "ESG", "탄소금융", "지속가능금융", "그린본드",
+        "보이스피싱", "스미싱", "금융사기", "자금세탁", "AML",
+        # 금융권 (주요 기관)
+        "은행 IT", "금융권 개발", "금융결제원", "코스콤", "금융공동망", "예탁결제원",
+        "농협은행", "NH농협", "농협금융", "NH투자증권",
+        "KB국민", "신한은행", "우리은행", "하나은행", 
+        "카카오뱅크", "토스뱅크", "케이뱅크",
+        # ESG/기타
+        "녹색금융", "ESG금융", "ESG", "탄소금융", "그린본드",
     ]
     
     # Gemini 프롬프트
@@ -184,14 +192,24 @@ class FinTechNewsAnalyzer:
         """기사 중요도 점수 계산 및 정렬"""
         print("\n📈 기사 중요도 분석 중...")
         
-        # 주요 출처 (신뢰도 높은 매체)
-        priority_sources = ["한국경제", "매일경제", "전자신문"]
-        
-        # 핵심 키워드 (더 중요한 키워드)
+        # 핵심 키워드 (금융IT 핵심 주제)
         core_keywords = [
-            "금감원", "금융위", "오픈뱅킹", "마이데이터", "코어뱅킹",
-            "차세대", "농협은행", "KB국민", "신한은행", "우리은행", "하나은행",
-            "금융보안", "핀테크", "디지털 전환", "금융 클라우드"
+            # 규제/감독 기관
+            "금감원", "금융위", "금융규제", "전자금융", "금융정책",
+            # 금융 인프라/시스템
+            "코어뱅킹", "차세대", "금융 클라우드", "레거시", "전산장애",
+            # 디지털 금융 정책
+            "오픈뱅킹", "마이데이터", "CBDC", "디지털화폐", "토큰증권",
+            # 보안
+            "금융보안", "FDS", "이상거래", "망분리", "보이스피싱",
+            # 핵심 트렌드
+            "핀테크", "디지털 전환", "금융 API", "빅테크",
+            # 주요 금융사 (타겟: 농협)
+            "농협은행", "NH농협", "농협금융",
+            "KB국민", "신한은행", "우리은행", "하나은행",
+            "카카오뱅크", "토스뱅크", "케이뱅크",
+            # 금융 인프라 기관
+            "금융결제원", "코스콤", "금융공동망", "예탁결제원",
         ]
         
         scored_articles = []
@@ -201,23 +219,20 @@ class FinTechNewsAnalyzer:
             title_lower = article.title.lower()
             text_lower = f"{article.title} {article.summary}".lower()
             
-            # 1. 주요 출처 +3점
-            if article.source in priority_sources:
-                score += 3
-            
-            # 2. 제목에 키워드 포함 +3점/개
+            # 1. 제목에 키워드 포함 +3점/개
             for keyword in self.KEYWORDS:
                 if keyword.lower() in title_lower:
                     score += 3
             
-            # 3. 핵심 키워드 매칭 +2점/개
+            # 2. 핵심 키워드 매칭 +2점/개
             for keyword in core_keywords:
                 if keyword.lower() in text_lower:
                     score += 2
             
-            # 4. 일반 키워드 매칭 개수 +1점/개
-            keyword_count = sum(1 for kw in self.KEYWORDS if kw.lower() in text_lower)
-            score += keyword_count
+            # 3. 일반 키워드 매칭 +1점/개
+            for keyword in self.KEYWORDS:
+                if keyword.lower() in text_lower:
+                    score += 1
             
             scored_articles.append((score, article))
         
@@ -238,7 +253,7 @@ class FinTechNewsAnalyzer:
         
         print(f"\n🤖 상위 {max_articles}개 기사 AI 분석 중...")
         
-        today = datetime.now().strftime("%Y.%m.%d")
+        today = datetime.now(KST).strftime("%Y.%m.%d")
         
         for i, article in enumerate(self.filtered_articles[:max_articles]):
             try:
@@ -281,7 +296,7 @@ class FinTechNewsAnalyzer:
     
     def generate_markdown(self, output_dir: str = "news") -> str:
         """마크다운 파일 생성"""
-        today = datetime.now()
+        today = datetime.now(KST)
         filename = f"{today.strftime('%Y-%m-%d')}.md"
         filepath = Path(output_dir) / filename
         
