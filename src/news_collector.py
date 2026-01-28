@@ -278,7 +278,7 @@ class FinTechNewsAnalyzer:
                 # 1. 정확히 일치하는 단어 개수
                 exact_match = len(title_words & prev_words)
                 
-                # 2. 부분 문자열 매칭 (인지수사권 vs 인지수사, 이재명 vs 李)
+                # 2. 부분 문자열 매칭 (인지수사권 vs 인지수사 등)
                 partial_match = 0
                 for word1 in title_words:
                     for word2 in prev_words:
@@ -287,12 +287,12 @@ class FinTechNewsAnalyzer:
                                 partial_match += 1
                                 break
                 
-                # 총 매칭 점수
-                total_match = exact_match + (partial_match * 0.5)
+                # 부분 매칭도 정확히 일치와 동일하게 1점
+                total_match = exact_match + partial_match
                 similarity = total_match / min(len(title_words), len(prev_words))
                 
-                # 유사도 35% 이상이면 중복으로 판단
-                if similarity >= 0.35:
+                # 유사도 40% 이상이면 중복으로 판단
+                if similarity >= 0.4:
                     is_similar = True
                     break
             
