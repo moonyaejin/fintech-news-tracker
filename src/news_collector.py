@@ -265,21 +265,34 @@ class FinTechNewsAnalyzer:
         for score, article in scored_articles:
             # 제목에서 핵심 단어 추출 (2글자 이상)
             title_words = set(
-                word for word in re.split(r'[\s\[\]…·""\'\'\", ]', article.title)
+                word for word in re.split(r'[\s\[\]…·""\'\'\",\-\_\(\)]', article.title)
                 if len(word) >= 2
             )
             
             # 이미 선택된 기사들과 유사도 체크
             is_similar = False
             for prev_words in selected_titles:
-                # 공통 단어 비율 계산
                 if not title_words or not prev_words:
                     continue
-                common = len(title_words & prev_words)
-                similarity = common / min(len(title_words), len(prev_words))
                 
-                # 유사도 40% 이상이면 중복으로 판단
-                if similarity >= 0.4:
+                # 1. 정확히 일치하는 단어 개수
+                exact_match = len(title_words & prev_words)
+                
+                # 2. 부분 문자열 매칭 (인지수사권 vs 인지수사, 이재명 vs 李)
+                partial_match = 0
+                for word1 in title_words:
+                    for word2 in prev_words:
+                        if word1 != word2 and len(word1) >= 2 and len(word2) >= 2:
+                            if word1 in word2 or word2 in word1:
+                                partial_match += 1
+                                break
+                
+                # 총 매칭 점수
+                total_match = exact_match + (partial_match * 0.5)
+                similarity = total_match / min(len(title_words), len(prev_words))
+                
+                # 유사도 35% 이상이면 중복으로 판단
+                if similarity >= 0.35:
                     is_similar = True
                     break
             
