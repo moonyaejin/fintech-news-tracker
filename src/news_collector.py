@@ -337,26 +337,38 @@ class FinTechNewsAnalyzer:
                     date=today
                 )
                 
-                response = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": "llama-3.1-8b-instant",
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.3,
-                        "max_tokens": 2000
-                    },
-                    timeout=30
-                )
-                response.raise_for_status()
+                # API 호출 (429 에러 시 재시도)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    response = requests.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": "llama-3.1-8b-instant",
+                            "messages": [{"role": "user", "content": prompt}],
+                            "temperature": 0.3,
+                            "max_tokens": 2000
+                        },
+                        timeout=60
+                    )
+                    
+                    if response.status_code == 429:
+                        wait_time = 30 * (attempt + 1)
+                        print(f"    ⏳ 속도 제한, {wait_time}초 대기 후 재시도...")
+                        time.sleep(wait_time)
+                        continue
+                    
+                    response.raise_for_status()
+                    break
+                
                 result = response.json()
                 article.analyzed_content = result["choices"][0]["message"]["content"]
                 
-                # API 속도 제한 대응
-                time.sleep(2)
+                # API 속도 제한 대응 (원문 분석 시 토큰 많이 사용)
+                time.sleep(10)
                 
             except Exception as e:
                 print(f"    ✗ 분석 실패: {e}")
