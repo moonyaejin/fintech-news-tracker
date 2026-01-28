@@ -238,12 +238,51 @@ class FinTechNewsAnalyzer:
         
         # 점수 높은 순으로 정렬
         scored_articles.sort(key=lambda x: x[0], reverse=True)
-        self.filtered_articles = [article for score, article in scored_articles]
+        
+        # 유사 기사 중복 제거
+        deduplicated = self._remove_similar_articles(scored_articles)
+        self.filtered_articles = deduplicated
         
         # 상위 5개 점수 출력
-        print("  🏆 중요도 TOP 5:")
-        for i, (score, article) in enumerate(scored_articles[:5]):
-            print(f"     {i+1}. [{score}점] {article.title[:40]}...")
+        print("  🏆 중요도 TOP 5 (중복 제거 후):")
+        for i, article in enumerate(self.filtered_articles[:5]):
+            print(f"     {i+1}. {article.title[:45]}...")
+    
+    def _remove_similar_articles(self, scored_articles: list) -> list:
+        """유사한 기사 중복 제거"""
+        selected = []
+        selected_titles = []
+        
+        for score, article in scored_articles:
+            # 제목에서 핵심 단어 추출 (2글자 이상)
+            title_words = set(
+                word for word in re.split(r'[\s\[\]…·""\'\'\", ]', article.title)
+                if len(word) >= 2
+            )
+            
+            # 이미 선택된 기사들과 유사도 체크
+            is_similar = False
+            for prev_words in selected_titles:
+                # 공통 단어 비율 계산
+                if not title_words or not prev_words:
+                    continue
+                common = len(title_words & prev_words)
+                similarity = common / min(len(title_words), len(prev_words))
+                
+                # 유사도 40% 이상이면 중복으로 판단
+                if similarity >= 0.4:
+                    is_similar = True
+                    break
+            
+            if not is_similar:
+                selected.append(article)
+                selected_titles.append(title_words)
+        
+        removed_count = len(scored_articles) - len(selected)
+        if removed_count > 0:
+            print(f"  🔄 유사 기사 {removed_count}개 중복 제거")
+        
+        return selected
     
     def analyze_articles(self, max_articles: int = 5) -> None:
         """Groq API로 기사 분석"""
