@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
+from newspaper import Article as NewsArticle
 
 # 한국 시간대 (UTC+9)
 KST = timezone(timedelta(hours=9))
@@ -292,6 +293,20 @@ class FinTechNewsAnalyzer:
         
         return selected
     
+    def _fetch_full_content(self, url: str) -> Optional[str]:
+        """기사 원문 스크래핑"""
+        try:
+            news = NewsArticle(url, language='ko')
+            news.download()
+            news.parse()
+            
+            if news.text and len(news.text) > 100:
+                # 너무 길면 앞부분만 사용 (약 3000자)
+                return news.text[:3000]
+            return None
+        except Exception:
+            return None
+    
     def analyze_articles(self, max_articles: int = 5) -> None:
         """Groq API로 기사 분석"""
         if not self.api_key:
@@ -306,10 +321,19 @@ class FinTechNewsAnalyzer:
             try:
                 print(f"  분석 중 ({i+1}/{max_articles}): {article.title[:40]}...")
                 
+                # 원문 스크래핑 시도
+                full_content = self._fetch_full_content(article.link)
+                if full_content:
+                    content = full_content
+                    print(f"    ✓ 원문 {len(content)}자 수집")
+                else:
+                    content = article.summary
+                    print(f"    → RSS 요약 사용")
+                
                 prompt = self.ANALYSIS_PROMPT.format(
                     title=article.title,
                     source=article.source,
-                    content=article.summary,
+                    content=content,
                     date=today
                 )
                 
