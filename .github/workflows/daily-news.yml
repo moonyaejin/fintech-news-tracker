@@ -1,9 +1,9 @@
 name: 📰 Daily FinTech News Update
 
 on:
-  # 매일 한국시간 오전 7시 (UTC 22:00) 자동 실행
+  # 매일 한국시간 오전 9시 (UTC 00:00) 자동 실행
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 0 * * *'
   
   # 수동 실행 가능
   workflow_dispatch:
@@ -28,7 +28,6 @@ jobs:
       
       - name: 📦 Install dependencies
         run: |
-          pip uninstall groq -y || true
           pip install -r requirements.txt
       
       - name: 🏦 Collect FinTech News
