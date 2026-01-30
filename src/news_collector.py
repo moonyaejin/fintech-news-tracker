@@ -145,9 +145,10 @@ class FinTechNewsAnalyzer:
         """모든 RSS 피드에서 뉴스 수집"""
         print("\n📰 뉴스 수집 시작...")
         
-        # 어제 날짜 기사만 수집
-        yesterday = (datetime.now(KST) - timedelta(days=1)).date()
-        print(f"  📅 대상 날짜: {yesterday}")
+        # 24시간 이내 기사만 수집
+        now = datetime.now(KST)
+        cutoff = now - timedelta(hours=24)
+        print(f"  📅 수집 범위: {cutoff.strftime('%m/%d %H:%M')} ~ {now.strftime('%m/%d %H:%M')}")
         
         for source_name, feed_url in self.RSS_FEEDS.items():
             try:
@@ -155,9 +156,9 @@ class FinTechNewsAnalyzer:
                 count = 0
                 
                 for entry in feed.entries[:30]:
-                    # 어제 날짜 기사만 필터링
-                    published_date = self._parse_date(entry)
-                    if published_date and published_date != yesterday:
+                    # 24시간 이내 기사만 필터링
+                    published_datetime = self._parse_datetime(entry)
+                    if not published_datetime or published_datetime < cutoff:
                         continue
                     
                     article = Article(
@@ -179,16 +180,15 @@ class FinTechNewsAnalyzer:
             except Exception as e:
                 print(f"  ✗ {source_name}: 수집 실패 - {e}")
         
-        print(f"📊 총 {len(self.articles)}개 어제 기사 수집 완료")
+        print(f"📊 총 {len(self.articles)}개 기사 수집 완료 (최근 24시간)")
     
-    def _parse_date(self, entry) -> Optional[datetime.date]:
-        """RSS 엔트리에서 날짜 파싱"""
+    def _parse_datetime(self, entry) -> Optional[datetime]:
+        """RSS 엔트리에서 datetime 파싱"""
         try:
-            # feedparser가 파싱한 날짜 사용
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                return datetime(*entry.published_parsed[:3]).date()
+                return datetime(*entry.published_parsed[:6], tzinfo=KST)
             if hasattr(entry, 'updated_parsed') and entry.updated_parsed:
-                return datetime(*entry.updated_parsed[:3]).date()
+                return datetime(*entry.updated_parsed[:6], tzinfo=KST)
         except Exception:
             pass
         return None
@@ -347,8 +347,8 @@ class FinTechNewsAnalyzer:
         
         print(f"\n🤖 상위 {max_articles}개 기사 AI 분석 중...")
         
-        # 어제 날짜
-        yesterday = (datetime.now(KST) - timedelta(days=1)).strftime("%Y.%m.%d")
+        # 실행일 기준
+        today = datetime.now(KST).strftime("%Y.%m.%d")
         
         for i, article in enumerate(self.filtered_articles[:max_articles]):
             try:
@@ -367,7 +367,7 @@ class FinTechNewsAnalyzer:
                     title=article.title,
                     source=article.source,
                     content=content,
-                    date=yesterday
+                    date=today
                 )
                 
                 # API 호출 (429 에러 시 재시도)
@@ -412,14 +412,14 @@ class FinTechNewsAnalyzer:
     
     def generate_markdown(self, output_dir: str = "news") -> str:
         """마크다운 파일 생성"""
-        # 어제 날짜로 파일 생성
-        yesterday = datetime.now(KST) - timedelta(days=1)
-        filename = f"{yesterday.strftime('%Y-%m-%d')}.md"
+        # 실행일 기준
+        today = datetime.now(KST)
+        filename = f"{today.strftime('%Y-%m-%d')}.md"
         filepath = Path(output_dir) / filename
         
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
-        content = self._build_markdown_content(yesterday)
+        content = self._build_markdown_content(today)
         filepath.write_text(content, encoding="utf-8")
         
         print(f"\n✅ 마크다운 파일 생성: {filepath}")
