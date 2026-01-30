@@ -145,12 +145,19 @@ class FinTechNewsAnalyzer:
         """모든 RSS 피드에서 뉴스 수집"""
         print("\n📰 뉴스 수집 시작...")
         
+        today = datetime.now(KST).date()
+        
         for source_name, feed_url in self.RSS_FEEDS.items():
             try:
                 feed = feedparser.parse(feed_url)
                 count = 0
                 
                 for entry in feed.entries[:30]:
+                    # 오늘 날짜 기사만 필터링
+                    published_date = self._parse_date(entry)
+                    if published_date and published_date != today:
+                        continue
+                    
                     article = Article(
                         title=self._clean_text(entry.get("title", "")),
                         link=entry.get("link", ""),
@@ -165,12 +172,24 @@ class FinTechNewsAnalyzer:
                         self.articles.append(article)
                         count += 1
                 
-                print(f"  ✓ {source_name}: {count}개 수집")
+                print(f"  ✓ {source_name}: {count}개 수집 (오늘 기사)")
                 
             except Exception as e:
                 print(f"  ✗ {source_name}: 수집 실패 - {e}")
         
-        print(f"📊 총 {len(self.articles)}개 기사 수집 완료")
+        print(f"📊 총 {len(self.articles)}개 오늘 기사 수집 완료")
+    
+    def _parse_date(self, entry) -> Optional[datetime.date]:
+        """RSS 엔트리에서 날짜 파싱"""
+        try:
+            # feedparser가 파싱한 날짜 사용
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                return datetime(*entry.published_parsed[:3]).date()
+            if hasattr(entry, 'updated_parsed') and entry.updated_parsed:
+                return datetime(*entry.updated_parsed[:3]).date()
+        except Exception:
+            pass
+        return None
     
     def filter_by_keywords(self) -> None:
         """금융IT 키워드로 기사 필터링"""
