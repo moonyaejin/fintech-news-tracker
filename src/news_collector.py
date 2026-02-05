@@ -130,6 +130,29 @@ class FinTechNewsAnalyzer:
 (전문용어가 없으면 이 섹션 생략)
 """
 
+    # AI 2차 필터링 프롬프트
+    AI_FILTER_PROMPT = """너는 금융IT 개발자를 준비하는 취준생이야.
+다음 기사가 취업 준비에 도움이 되는 금융IT 관련 기사인지 판단해줘.
+
+[관련있음 기준]
+- 은행/증권/보험사의 IT 시스템, 디지털 전환
+- 핀테크, 오픈뱅킹, 마이데이터
+- 금융 보안, 금융 사기 방지 (FDS, 보이스피싱 등)
+- 금융 규제 중 IT 관련 내용
+- 금융권 채용, IT 조직 변화
+- 금융결제원, 코스콤 등 금융 인프라
+
+[관련없음 기준]
+- 일반 IT/AI 기술 (금융 특화 아님)
+- 전기차, 반도체, 방산, 제조업 등 타 산업
+- 주가, 환율, 펀드, ETF 등 투자/시세 정보
+- 부동산, 대출 금리 등 일반 금융 상품 뉴스
+
+기사 제목: {title}
+기사 요약: {summary}
+
+"관련있음" 또는 "관련없음"으로만 답변해줘."""
+
     def __init__(self):
         self.articles: list[Article] = []
         self.filtered_articles: list[Article] = []
@@ -325,6 +348,68 @@ class FinTechNewsAnalyzer:
         
         return selected
     
+    def ai_filter_articles(self, max_to_filter: int = 10) -> None:
+        """AI로 금융IT 관련성 2차 필터링"""
+        if not self.api_key:
+            print("\n⚠️ Groq API 키가 없어 AI 필터링을 건너뜁니다.")
+            return
+        
+        if not self.filtered_articles:
+            return
+        
+        print(f"\n🤖 AI 2차 필터링 중... (상위 {max_to_filter}개 검증)")
+        
+        verified_articles = []
+        
+        for i, article in enumerate(self.filtered_articles[:max_to_filter]):
+            try:
+                prompt = self.AI_FILTER_PROMPT.format(
+                    title=article.title,
+                    summary=article.summary[:300]
+                )
+                
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": "llama-3.1-8b-instant",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.1,
+                        "max_tokens": 20
+                    },
+                    timeout=30
+                )
+                
+                if response.status_code == 429:
+                    time.sleep(10)
+                    verified_articles.append(article)  # 에러 시 일단 포함
+                    continue
+                
+                response.raise_for_status()
+                result = response.json()
+                answer = result["choices"][0]["message"]["content"].strip()
+                
+                if "관련있음" in answer:
+                    verified_articles.append(article)
+                    print(f"  ✓ {article.title[:40]}...")
+                else:
+                    print(f"  ✗ 제외: {article.title[:40]}...")
+                
+                time.sleep(2)  # API 속도 제한 대응
+                
+            except Exception as e:
+                print(f"  ⚠️ 필터링 실패, 포함 처리: {article.title[:30]}...")
+                verified_articles.append(article)  # 에러 시 일단 포함
+        
+        # 나머지 기사도 포함 (AI 필터링 안 한 것들)
+        remaining = self.filtered_articles[max_to_filter:]
+        
+        self.filtered_articles = verified_articles + remaining
+        print(f"📊 AI 필터링 완료: {len(verified_articles)}개 통과")
+    
     def _fetch_full_content(self, url: str) -> Optional[str]:
         """기사 원문 스크래핑"""
         try:
@@ -496,10 +581,13 @@ def main():
     # 2. 키워드 필터링
     analyzer.filter_by_keywords()
     
-    # 3. AI 분석 (상위 5개)
+    # 3. AI 2차 필터링 (금융IT 관련성 검증)
+    analyzer.ai_filter_articles(max_to_filter=10)
+    
+    # 4. AI 분석 (상위 5개)
     analyzer.analyze_articles(max_articles=5)
     
-    # 4. 마크다운 생성
+    # 5. 마크다운 생성
     analyzer.generate_markdown("news")
     
     print("\n✨ 완료!")
