@@ -77,6 +77,12 @@ class FinTechNewsAnalyzer:
     ANALYSIS_PROMPT = """다음 금융IT 관련 뉴스 기사를 분석해서 아래 형식으로 정리해줘.
 반드시 마크다운 형식을 지켜줘.
 
+[중요 규칙]
+1. 원문에 없는 정보는 절대 추측하지 마. 날짜, 수치, 이름 등을 지어내지 마.
+2. 핵심 인물의 발언은 "인용문" 형태로 포함해.
+3. 구체적인 수치(%, 금액, 날짜)가 있으면 반드시 포함해.
+4. 찬반 논란이나 업계 반응이 있으면 반드시 포함해.
+
 [기사 제목]: {title}
 [기사 출처]: {source}
 [기사 내용]: {content}
@@ -115,6 +121,7 @@ class FinTechNewsAnalyzer:
 ### 핵심 사안
 - (기사에서 가장 중요한 내용)
 - (구체적인 수치, 정책, 발언 등 포함)
+- (핵심 인물 발언이 있으면 "직접 인용" 포함)
 
 ### 향후 전망
 - (예상되는 영향이나 앞으로의 방향)
@@ -425,19 +432,26 @@ class FinTechNewsAnalyzer:
             return None
     
     def analyze_articles(self, max_articles: int = 5) -> None:
-        """Groq API로 기사 분석"""
+        """Groq API로 기사 분석 (원문 스크래핑 성공한 기사만)"""
         if not self.api_key:
             print("\n⚠️ Groq API 키가 없어 분석을 건너뜁니다.")
             return
         
-        print(f"\n🤖 상위 {max_articles}개 기사 AI 분석 중...")
+        print(f"\n🤖 기사 AI 분석 중... (목표: {max_articles}개)")
         
         # 실행일 기준
         today = datetime.now(KST).strftime("%Y.%m.%d")
         
-        for i, article in enumerate(self.filtered_articles[:max_articles]):
+        analyzed_count = 0
+        skipped_count = 0
+        
+        # 상위 기사들 순회 (최대 15개까지 시도해서 5개 채우기)
+        for article in self.filtered_articles[:15]:
+            if analyzed_count >= max_articles:
+                break
+                
             try:
-                print(f"  분석 중 ({i+1}/{max_articles}): {article.title[:40]}...")
+                print(f"  분석 중 ({analyzed_count+1}/{max_articles}): {article.title[:40]}...")
                 
                 # 원문 스크래핑 시도
                 full_content = self._fetch_full_content(article.link)
@@ -445,8 +459,10 @@ class FinTechNewsAnalyzer:
                     content = full_content
                     print(f"    ✓ 원문 {len(content)}자 수집")
                 else:
-                    content = article.summary
-                    print(f"    → RSS 요약 사용")
+                    # 원문 스크래핑 실패 시 스킵
+                    print(f"    ✗ 원문 수집 실패, 스킵")
+                    skipped_count += 1
+                    continue
                 
                 prompt = self.ANALYSIS_PROMPT.format(
                     title=article.title,
@@ -484,6 +500,7 @@ class FinTechNewsAnalyzer:
                 
                 result = response.json()
                 article.analyzed_content = result["choices"][0]["message"]["content"]
+                analyzed_count += 1
                 
                 # API 속도 제한 대응 (원문 분석 시 토큰 많이 사용)
                 time.sleep(10)
@@ -492,8 +509,7 @@ class FinTechNewsAnalyzer:
                 print(f"    ✗ 분석 실패: {e}")
                 article.analyzed_content = None
         
-        analyzed_count = sum(1 for a in self.filtered_articles[:max_articles] if a.analyzed_content)
-        print(f"📊 {analyzed_count}개 기사 분석 완료")
+        print(f"📊 {analyzed_count}개 기사 분석 완료 (원문 수집 실패로 {skipped_count}개 스킵)")
     
     def generate_markdown(self, output_dir: str = "news") -> str:
         """마크다운 파일 생성"""
