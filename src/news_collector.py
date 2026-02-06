@@ -163,6 +163,7 @@ class FinTechNewsAnalyzer:
     def __init__(self):
         self.articles: list[Article] = []
         self.filtered_articles: list[Article] = []
+        self.all_keyword_articles: list[Article] = []  # 키워드 필터링 통과한 전체 기사
         
         # Groq API 설정
         self.api_key = os.environ.get("GROQ_API_KEY")
@@ -296,6 +297,9 @@ class FinTechNewsAnalyzer:
         
         # 점수 높은 순으로 정렬
         scored_articles.sort(key=lambda x: x[0], reverse=True)
+        
+        # 키워드 필터링 통과한 전체 기사 저장 (기타 뉴스용)
+        self.all_keyword_articles = [article for score, article in scored_articles]
         
         # 유사 기사 중복 제거
         deduplicated = self._remove_similar_articles(scored_articles)
@@ -538,7 +542,7 @@ class FinTechNewsAnalyzer:
             "## 📊 오늘의 요약",
             "",
             f"- 총 수집 기사: {len(self.articles)}개",
-            f"- 금융IT 관련: {len(self.filtered_articles)}개",
+            f"- 금융IT 관련: {len(self.all_keyword_articles)}개",
             f"- AI 분석 완료: {sum(1 for a in self.filtered_articles if a.analyzed_content)}개",
             "",
             "---",
@@ -546,25 +550,29 @@ class FinTechNewsAnalyzer:
         ]
         
         # AI 분석된 기사
-        for i, article in enumerate(self.filtered_articles):
+        analyzed_links = set()
+        article_num = 1
+        for article in self.filtered_articles:
             if article.analyzed_content:
                 lines.extend([
-                    f"# {i+1}. [{article.title}]({article.link})",
+                    f"# {article_num}. [{article.title}]({article.link})",
                     "",
                     article.analyzed_content,
                     "",
                     "---",
                     "",
                 ])
+                analyzed_links.add(article.link)
+                article_num += 1
         
-        # 분석 안 된 나머지 기사 (간단히 목록으로)
-        remaining = [a for a in self.filtered_articles if not a.analyzed_content]
-        if remaining:
+        # 키워드 필터링 통과했지만 상세 분석 안 된 기사 (기타 뉴스)
+        other_articles = [a for a in self.all_keyword_articles if a.link not in analyzed_links]
+        if other_articles:
             lines.extend([
                 "## 📰 기타 금융IT 뉴스",
                 "",
             ])
-            for article in remaining[:10]:
+            for article in other_articles[:15]:  # 최대 15개
                 lines.append(f"- [{article.title}]({article.link}) - {article.source}")
             lines.extend(["", "---", ""])
         
